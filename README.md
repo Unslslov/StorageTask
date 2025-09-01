@@ -1,64 +1,68 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400"></a></p>
+## 🧰 Подключение к бд
+### Адрес: 185.105.110.5
+### Пароль: 133455oPS@ar
+### Я использовал хостинг Макхост, чтобы обратиться к бд, нужно добавить там пользователя при помощи ip, который можно получить, например, через 2ip, свяжитесь со мной в тг(@unsolino), я постараюсь, как можно быстрее добавить вас
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## 🔧 Функционал
+- **(GET http://109.73.206.144:6969/api/incomes)** — Импорт данных из внешнего API
+- **Хранение данных в базе данных**
+- **api.key** - Защита маршрутов с помощью middleware  
+- **Обработка пагинации и больших объёмов данных** — Авторизация через токены
 
-## About Laravel
+## 🚀 Установка
+### Клонируйте репозиторий:
+```bash
+git clone https://github.com/Unslslov/StorageTask.git 
+cd storagetask
+```
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Установите зависимости:
+```bash
+composer install
+```
+### Настройте .env файл:
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+### Выполните миграции и запустите команду импорта:
+```bash
+php artisan migrate
+php artisan incomes:import
+```
+### Запустите сервер:
+```bash
+php artisan serve
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 🌐 Доступные API-маршруты
+Все маршруты защищены с помощью middleware api.key, то есть для доступа к ним необходимо передать корректный API-ключ.
+Каждый маршрут возвращает данные в формате JSON.
+### Получить список Income
+```bash
+http://127.0.0.1:8000/api/incomes?dateFrom=2000-02-10&dateTo=2027-05-29&page=1&key=E6kUTYrYwZq2tN4QEtyzsbEBk3ie&limit=10
+```
+### Получить список Stocks
+```bash
+http://127.0.0.1:8000/api/stocks?dateFrom=1988-12-29&dateTo=2020-10-25&page=1&key=E6kUTYrYwZq2tN4QEtyzsbEBk3ie&limit=10
+```
+### Получить список Sales
+```bash
+http://127.0.0.1:8000/api/sales?dateFrom=1974-12-29&dateTo=1987-10-25&page=2&key=E6kUTYrYwZq2tN4QEtyzsbEBk3ie&limit=10
+```
+### Получить список Orders
+```bash
+http://127.0.0.1:8000/api/orders?dateFrom=1974-12-29&dateTo=1987-10-25&page=2&key=E6kUTYrYwZq2tN4QEtyzsbEBk3ie&limit=10
+```
+## 📥 Команда для импорта
+Команда: incomes:import
+Импортирует данные по приходам из внешнего API и сохраняет их в БД.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1500 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-## Laravel Sponsors
-
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
-
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Как запустить:
+```bash
+php artisan incomes:import
+```
+Особенности:
+- Обрабатывает пагинацию и большие объемы данных.
+- Поддерживает автоматическое повторение запросов при получении ошибки 429 Too Many Requests.
+- Использует транзакции при записи в БД для обеспечения целостности данных.
