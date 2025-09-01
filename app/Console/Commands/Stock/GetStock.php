@@ -2,7 +2,10 @@
 
 namespace App\Console\Commands\Stock;
 
+use App\Models\Account;
 use App\Models\Stock;
+use App\Models\Token;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
@@ -10,48 +13,62 @@ use Illuminate\Support\Facades\DB;
 class GetStock extends Command
 {
     protected $retryDelay = 1;
-    protected $signature = 'stocks:import';
+    protected $signature = 'stocks:import {--account=} {--token=} {--dateFrom=} {--dateTo=}';
+    protected $description = 'Импорт stocks с внешнего API';
 
-    protected $description = 'Import stocks from external API';
-
-    protected $dateFrom = '2025-07-07';
-    protected $dateTo = '2025-07-10';
-    protected $page = 1;
-    protected $limit = 500;
-    protected $key = 'E6kUTYrYwZq2tN4QEtyzsbEBk3ie';
     protected $url = "http://109.73.206.144:6969/api/stocks";
     protected $chunkSize = 100;
 
     public function handle()
     {
-        $this->info("Начало импорта данных за период {$this->dateFrom} — {$this->dateTo}");
+        $accountId = $this->option('account');
+        $tokenId = $this->option('token');
+        $dateFrom = $this->option('dateFrom') ?? '2025-07-04';
+        $dateTo = $this->option('dateTo') ?? now()->format('Y-m-d');
+
+        $page = 1;
+        $limit = 500;
+
+        $account = Account::find($accountId);
+        $token = Token::with('apiService')->find($tokenId);
+
+        if (!$account || !$token) {
+            $this->error('Аккаунт или токен не найден');
+            return 1;
+        }
+
+        $this->info("Начало импорта stock для аккаунта: {$account->name}");
+
+//        ini_set('memory_limit', '512M');
 
         try {
             do {
-                $response = Http::get($this->url, [
-                    'dateFrom' => $this->dateFrom,
-                    'dateTo' => $this->dateTo,
-                    'page' => $this->page,
-                    'key' => $this->key,
-                    'limit' => $this->limit
+                $params = $this->buildRequestParams($token, [
+                    'dateFrom' => $dateFrom,
+                    'dateTo' => $dateTo,
+                    'page' => $page,
+                    'limit' => $limit
                 ]);
+
+                $response = Http::get($this->url, $params);
 
                 if ($response->status() === 429) {
                     $this->retryDelay *= 2;
+                    $this->warn("Rate limit exceeded. Retrying in {$this->retryDelay} seconds...");
                     sleep($this->retryDelay);
                     continue;
                 }
 
                 $this->retryDelay = 1;
 
-                if (!$response->successful()) {
-                    throw new \Exception("Ошибка API: " . $response->body());
+                if(!$response->successful()) {
+                    throw new \Exception("API error: " . $response->body());
                 }
 
                 $data = $response->json('data');
 
                 if (empty($data)) {
-                    $this->info("Нет данных для импорта на странице {$this->page}");
+                    $this->info("No data to import on page {$page}");
                     break;
                 }
 
@@ -80,15 +97,16 @@ class GetStock extends Command
                             'sc_code' => isset($item['sc_code']) ? (string)$item['sc_code'] : null,
                             'price' => isset($item['price']) ? round((float)$item['price'], 2) : null,
                             'discount' => isset($item['discount']) ? round((float)$item['discount'], 2) : null,
+                            'account_id' => $account->id ?? null
                         ];
 
-                        if (count($records) >= $this->chunkSize) {
+                        if(count($records) >= $this->chunkSize) {
                             $this->insertChunk($records);
                             $processedCount += count($records);
                             $records = [];
                         }
                     } catch (\Exception $e) {
-                        $this->error("Ошибка при обработке элемента: " . $e->getMessage());
+                        $this->info("Error processing item: " . $e->getMessage());
                         continue;
                     }
                 }
@@ -98,27 +116,45 @@ class GetStock extends Command
                     $processedCount += count($records);
                 }
 
-                $this->info("Обработано страница {$this->page}: {$processedCount} записей");
-                $this->page++;
+                $this->info("Processed page {$page}: {$processedCount} records");
+                $page++;
+            } while (count($data) === $limit);
 
-            } while (count($data) === $this->limit);
-
-            $this->info("Импорт завершен успешно!");
+            $this->info("Import completed successfully for account: {$account->name}");
         } catch (\Exception $e) {
-            $this->error("Ошибка: " . $e->getMessage());
+            $this->error("Error: " . $e->getMessage());
             return 1;
         }
 
         return 0;
     }
 
-    /**
-     * Вставка чанка данных с обработкой ошибок
-     */
+    protected function buildRequestParams($token, $params)
+    {
+        switch ($token->tokenType->name) {
+            case 'api-key':
+                $params['key'] = $token->value;
+                break;
+            case 'bearer':
+                // Для bearer токена нужно добавить заголовок Authorization
+                // Это можно сделать через Http::withToken()
+                // Но в данном случае мы передаем параметры в URL
+                $params['Authorization'] = 'Bearer ' . $token->value;
+                break;
+            case 'login-password':
+                $meta = $token->meta ?? [];
+                $params['login'] = $meta['login'] ?? '';
+                $params['password'] = $meta['password'] ?? '';
+                break;
+        }
+
+        return $params;
+    }
+
     protected function insertChunk(array $records)
     {
+        DB::beginTransaction();
         try {
-            DB::beginTransaction();
 
             Stock::insert($records);
 

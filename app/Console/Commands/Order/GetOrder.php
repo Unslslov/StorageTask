@@ -2,7 +2,10 @@
 
 namespace App\Console\Commands\Order;
 
+use App\Models\Account;
+use App\Models\Income;
 use App\Models\Order;
+use App\Models\Token;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -11,52 +14,62 @@ use Illuminate\Support\Facades\Http;
 class GetOrder extends Command
 {
     protected $retryDelay = 1;
+    protected $signature = 'orders:import {--account=} {--token=} {--dateFrom=} {--dateTo=}';
+    protected $description = 'Импорт orders с внешнего API';
 
-    protected $signature = 'orders:import';
-
-    protected $description = 'Import orders from external API';
-
-    protected $dateFrom = '2022-07-04';
-    protected $dateTo = '2027-07-10';
-    protected $page = 1;
-    protected $limit = 500;
-    protected $key = 'E6kUTYrYwZq2tN4QEtyzsbEBk3ie';
     protected $url = "http://109.73.206.144:6969/api/orders";
     protected $chunkSize = 100;
 
     public function handle()
     {
-        ini_set('memory_limit', '512M');
+        $accountId = $this->option('account');
+        $tokenId = $this->option('token');
+        $dateFrom = $this->option('dateFrom') ?? '2025-07-04';
+        $dateTo = $this->option('dateTo') ?? now()->format('Y-m-d');
 
-        $this->info("Начало импорта данных за период {$this->dateFrom} - {$this->dateTo}");
+        $page = 1;
+        $limit = 500;
+
+        $account = Account::find($accountId);
+        $token = Token::with('apiService')->find($tokenId);
+
+        if (!$account || !$token) {
+            $this->error('Аккаунт или токен не найден');
+            return 1;
+        }
+
+        $this->info("Начало импорта order для аккаунта: {$account->name}");
+
+//        ini_set('memory_limit', '512M');
 
         try {
             do {
-                $response = Http::get($this->url, [
-                    'dateFrom' => $this->dateFrom,
-                    'dateTo' => $this->dateTo,
-                    'page' => $this->page,
-                    'key' => $this->key,
-                    'limit' => $this->limit
+                $params = $this->buildRequestParams($token, [
+                    'dateFrom' => $dateFrom,
+                    'dateTo' => $dateTo,
+                    'page' => $page,
+                    'limit' => $limit
                 ]);
+
+                $response = Http::get($this->url, $params);
 
                 if ($response->status() === 429) {
                     $this->retryDelay *= 2;
+                    $this->warn("Rate limit exceeded. Retrying in {$this->retryDelay} seconds...");
                     sleep($this->retryDelay);
                     continue;
                 }
 
                 $this->retryDelay = 1;
 
-                if(!$response->successful())
-                {
-                    throw new \Exception("Ошибка API: " . $response->body());
+                if(!$response->successful()) {
+                    throw new \Exception("API error: " . $response->body());
                 }
 
                 $data = $response->json('data');
 
                 if (empty($data)) {
-                    $this->info("Нет данных для импорта на странице {$this->page}");
+                    $this->info("No data to import on page {$page}");
                     break;
                 }
 
@@ -84,6 +97,7 @@ class GetOrder extends Command
                             'brand' => isset($item['brand']) ? substr($item['brand'], 0, 64) : null,
                             'is_cancel' => $item['is_cancel'] ?? false,
                             'cancel_dt' => isset($item['cancel_dt']) ? Carbon::parse($item['cancel_dt']) : null,
+                            'account_id' => $account->id ?? null
                         ];
 
                         if(count($records) >= $this->chunkSize) {
@@ -91,42 +105,69 @@ class GetOrder extends Command
                             $processedCount += count($records);
                             $records = [];
                         }
-                    } catch (\Exception $e)
-                    {
-                        $this->info("Ошибка при обработке элемента: " . $e->getMessage());
+                    } catch (\Exception $e) {
+                        $this->info("Error processing item: " . $e->getMessage());
                         continue;
                     }
-
                 }
-                if (!empty($records))
-                {
+
+                if (!empty($records)) {
                     $this->insertChunk($records);
                     $processedCount += count($records);
                 }
 
-                $this->info("Обработано страница {$this->page}: {$processedCount} записей");
-                $this->page++;
-            }
-            while (count($data) === $this->limit);
+                $this->info("Processed page {$page}: {$processedCount} records");
+                $page++;
+            } while (count($data) === $limit);
 
-            $this->info("Иморт завершен успешно");
-        } catch (\Exception $e)
-        {
-            $this->error("Ошибка: " . $e->getMessage());
-
+            $this->info("Import completed successfully for account: {$account->name}");
+        } catch (\Exception $e) {
+            $this->error("Error: " . $e->getMessage());
             return 1;
         }
 
         return 0;
     }
 
+    protected function buildRequestParams($token, $params)
+    {
+        switch ($token->tokenType->name) {
+            case 'api-key':
+                $params['key'] = $token->value;
+                break;
+            case 'bearer':
+                // Для bearer токена нужно добавить заголовок Authorization
+                // Это можно сделать через Http::withToken()
+                // Но в данном случае мы передаем параметры в URL
+                $params['Authorization'] = 'Bearer ' . $token->value;
+                break;
+            case 'login-password':
+                $meta = $token->meta ?? [];
+                $params['login'] = $meta['login'] ?? '';
+                $params['password'] = $meta['password'] ?? '';
+                break;
+        }
+
+        return $params;
+    }
+
     protected function insertChunk(array $records)
     {
+        DB::beginTransaction();
         try {
-            DB::beginTransaction();
+
+            // Используем updateOrCreate для предотвращения дубликатов
+//            foreach ($records as $record) {
+//                Income::updateOrCreate(
+//                    [
+//                        'income_id' => $record['income_id'],
+//                        'account_id' => $record['account_id']
+//                    ],
+//                    $record
+//                );
+//            }
 
             Order::insert($records);
-
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();

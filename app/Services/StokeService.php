@@ -15,10 +15,10 @@ class StokeService
         $query = Stock::query();
 
         return app(Pipeline::class)
-            ->send($query)
-            ->through([
-                new DateFrom($dateFrom)
-            ])
-            ->thenReturn();
+        ->send($query)
+        ->through([
+            new DateFrom($dateFrom)
+        ])
+        ->thenReturn();
     }
 }

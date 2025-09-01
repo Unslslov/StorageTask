@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Sale extends Model
 {
@@ -12,6 +13,7 @@ class Sale extends Model
     public $incrementing = false;
     protected $primaryKey = null;
     protected $guarded = false;
+    public $timestamps = false;
 
     public function order()
     {
@@ -21,5 +23,10 @@ class Sale extends Model
     public function income()
     {
         return $this->hasOne(Income::class);
+    }
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class);
     }
 }

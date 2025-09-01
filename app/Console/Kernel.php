@@ -15,7 +15,15 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('app:fetch-all-data')
+            ->twiceDaily(6, 18)
+            ->appendOutputTo(storage_path('logs/scheduler.log'))
+            ->onSuccess(function () {
+                \Log::info('Scheduled data fetch completed successfully');
+            })
+            ->onFailure(function () {
+                \Log::error('Scheduled data fetch failed');
+            });
     }
 
     /**
