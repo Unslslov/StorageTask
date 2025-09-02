@@ -8,6 +8,7 @@ use App\Models\Token;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use App\DataTransferObjects\IncomeDto;
 
 class GetIncome extends Command
 {
@@ -50,7 +51,7 @@ class GetIncome extends Command
 
                 if ($response->status() === 429) {
                     $this->retryDelay *= 2;
-                    $this->warn("Rate limit exceeded. Retrying in {$this->retryDelay} seconds...");
+                    $this->warn("Превышен лимит скорости. Повторная попытка через {$this->retryDelay} секунд...");
                     sleep($this->retryDelay);
                     continue;
                 }
@@ -58,13 +59,13 @@ class GetIncome extends Command
                 $this->retryDelay = 1;
 
                 if(!$response->successful()) {
-                    throw new \Exception("API error: " . $response->body());
+                    throw new \Exception("ошибка API: " . $response->body());
                 }
 
                 $data = $response->json('data');
 
                 if (empty($data)) {
-                    $this->info("No data to import on page {$page}");
+                    $this->info("Нет данных для импорта на страницу {$page}");
                     break;
                 }
 
@@ -73,21 +74,8 @@ class GetIncome extends Command
 
                 foreach ($data as $item) {
                     try {
-                        $records[] = [
-                            'income_id' => $item['income_id'] ?? null,
-                            'number' => isset($item['number']) ? (string)$item['number'] : null,
-                            'date' => $item['date'] ?? null,
-                            'last_change_date' => $item['last_change_date'] ?? null,
-                            'supplier_article' => isset($item['supplier_article']) ? (string)$item['supplier_article'] : null,
-                            'tech_size' => isset($item['tech_size']) ? (string)$item['tech_size'] : null,
-                            'barcode' => isset($item['barcode']) ? (string)$item['barcode'] : null,
-                            'quantity' => $item['quantity'] ?? null,
-                            'total_price' => isset($item['total_price']) ? round((float)$item['total_price'], 2) : 0.00,
-                            'date_close' => $item['date_close'] ?? null,
-                            'warehouse_name' => $item['warehouse_name'] ?? null,
-                            'nm_id' => $item['nm_id'] ?? null,
-                            'account_id' => $account->id ?? null
-                        ];
+                        $dto = IncomeDto::fromArray($item, $account->id);
+                        $records[] = $dto->toArray();
 
                         if(count($records) >= $this->chunkSize) {
                             $this->insertChunk($records);
@@ -95,7 +83,7 @@ class GetIncome extends Command
                             $records = [];
                         }
                     } catch (\Exception $e) {
-                        $this->info("Error processing item: " . $e->getMessage());
+                        $this->info("Элемент обработки ошибок: " . $e->getMessage());
                         continue;
                     }
                 }
@@ -105,22 +93,19 @@ class GetIncome extends Command
                     $processedCount += count($records);
                 }
 
-                $this->info("Processed page {$page}: {$processedCount} records");
+                $this->info("Обработанная страница {$page}: записи {$processedCount}");
                 $page++;
             } while (count($data) === $limit);
 
-            $this->info("Import completed successfully for account: {$account->name}");
+            $this->info("Импорт для учетной записи успешно завершен: {$account->name}");
         } catch (\Exception $e) {
-            $this->error("Error: " . $e->getMessage());
+            $this->error("Ошибка: " . $e->getMessage());
             return 1;
         }
 
         return 0;
     }
 
-    /**
-     * Build request parameters based on token type
-     */
     protected function buildRequestParams($token, $params)
     {
         switch ($token->tokenType->name) {

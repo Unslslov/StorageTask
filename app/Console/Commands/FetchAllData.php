@@ -29,7 +29,6 @@ class FetchAllData extends Command
         foreach ($accounts as $account) {
             $this->info("Processing account: {$account->name} (ID: {$account->id})");
 
-            // Получаем токены для аккаунта
             if ($account->tokens->isEmpty()) {
                 $this->warn("No tokens found for account: {$account->name}");
                 continue;
@@ -40,7 +39,6 @@ class FetchAllData extends Command
                 $this->info("Processing token for service: {$token->apiService->name}");
 
                 try {
-                    // В зависимости от типа сервиса вызываем соответствующие команды
                     switch ($token->apiService->name) {
                         case 'Wildberries API':
                             $this->fetchWildberriesData($account, $token);
@@ -75,7 +73,21 @@ class FetchAllData extends Command
 
         $this->info("Fetching Wildberries data from {$dateFrom} to {$dateTo}");
 
-        // Вызываем команды для получения данных с параметрами аккаунта
+        $this->fetchData($account, $token, $dateFrom, $dateTo);
+    }
+
+    private function fetchOzonData(Account $account, Token $token)
+    {
+        $dateFrom = now()->subDay(7)->format('Y-m-d');
+        $dateTo = now()->addDay(7)->format('Y-m-d');
+
+        $this->info("Fetching Ozon data from {$dateFrom} to {$dateTo}");
+
+        $this->fetchData($account, $token, $dateFrom, $dateTo);
+    }
+
+    private function fetchData(Account $account, Token $token, $dateFrom, $dateTo)
+    {
         $this->call('incomes:import', [
             '--account' => $account->id,
             '--token' => $token->id,
@@ -90,29 +102,18 @@ class FetchAllData extends Command
             '--dateTo' => $dateTo
         ]);
 
-         $this->call('sales:import', [
-             '--account' => $account->id,
-             '--token' => $token->id,
-             '--dateFrom' => $dateFrom,
-             '--dateTo' => $dateTo
-         ]);
+        $this->call('sales:import', [
+            '--account' => $account->id,
+            '--token' => $token->id,
+            '--dateFrom' => $dateFrom,
+            '--dateTo' => $dateTo
+        ]);
 
-         $this->call('stocks:import', [
-             '--account' => $account->id,
-             '--token' => $token->id,
-             '--dateFrom' => now()->format('Y-m-d'),
-             '--dateTo' => $dateTo
-         ]);
-    }
-
-    private function fetchOzonData(Account $account, Token $token)
-    {
-        $dateFrom = now()->format('Y-m-d');
-        $dateTo = now()->addDay(7)->format('Y-m-d');
-
-        $this->info("Fetching Ozon data from {$dateFrom} to {$dateTo}");
-
-        // Для Ozon API может быть другой формат дат или параметров
-        // $this->call('ozon:incomes:import', [...]);
+        $this->call('stocks:import', [
+            '--account' => $account->id,
+            '--token' => $token->id,
+            '--dateFrom' => now()->format('Y-m-d'),
+            '--dateTo' => $dateTo
+        ]);
     }
 }

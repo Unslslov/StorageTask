@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Sale;
 
+use App\DataTransferObjects\SaleDto;
 use App\Models\Account;
 use App\Models\Sale;
 use App\Models\Token;
@@ -54,7 +55,7 @@ class GetSale extends Command
 
                 if ($response->status() === 429) {
                     $this->retryDelay *= 2;
-                    $this->warn("Rate limit exceeded. Retrying in {$this->retryDelay} seconds...");
+                    $this->warn("Превышен лимит скорости. Повторная попытка через {$this->retryDelay} секунд...");
                     sleep($this->retryDelay);
                     continue;
                 }
@@ -68,7 +69,7 @@ class GetSale extends Command
                 $data = $response->json('data');
 
                 if (empty($data)) {
-                    $this->info("No data to import on page {$page}");
+                    $this->info("Нет данных для импорта на страницу {$page}");
                     break;
                 }
 
@@ -77,36 +78,8 @@ class GetSale extends Command
 
                 foreach ($data as $item) {
                     try {
-                        $records[] = [
-                            'sale_id' => $item['sale_id'] ?? null,
-                            'g_number' => $item['g_number'] ?? null,
-                            'date' => $item['date'] ?? null,
-                            'last_change_date' => $item['last_change_date'] ?? null,
-                            'supplier_article' => $item['supplier_article'] ?? null,
-                            'tech_size' => $item['tech_size'] ?? null,
-                            'barcode' => isset($item['barcode']) ? (string)$item['barcode'] : null,
-                            'total_price' => isset($item['total_price']) ? round((float)$item['total_price'], 2) : 0,
-                            'discount_percent' => isset($item['discount_percent']) ? round((float)$item['discount_percent'], 2) : 0,
-                            'is_supply' => $item['is_supply'] ?? false,
-                            'is_realization' => $item['is_realization'] ?? false,
-                            'promo_code_discount' => isset($item['promo_code_discount']) ? round((float)$item['promo_code_discount'], 2) : null,
-                            'warehouse_name' => $item['warehouse_name'] ?? null,
-                            'country_name' => $item['country_name'] ?? null,
-                            'oblast_okrug_name' => $item['oblast_okrug_name'] ?? null,
-                            'region_name' => $item['region_name'] ?? null,
-                            'income_id' => $item['income_id'] ?? null,
-                            'odid' => $item['odid'] ?? null,
-                            'spp' => isset($item['spp']) ? round((float)$item['spp'], 2) : 0,
-                            'for_pay' => isset($item['for_pay']) ? round((float)$item['for_pay'], 2) : 0,
-                            'finished_price' => isset($item['finished_price']) ? round((float)$item['finished_price'], 2) : 0,
-                            'price_with_disc' => isset($item['price_with_disc']) ? round((float)$item['price_with_disc'], 2) : 0,
-                            'nm_id' => $item['nm_id'],
-                            'subject' => $item['subject'] ?? null,
-                            'category' => $item['category'] ?? null,
-                            'brand' => $item['brand'] ?? null,
-                            'is_storno' => $item['is_storno'] ?? null,
-                            'account_id' => $account->id ?? null
-                        ];
+                        $dto = SaleDto::fromArray($item, $account->id);
+                        $records[] = $dto->toArray();
 
                         if(count($records) >= $this->chunkSize) {
                             $this->insertChunk($records);

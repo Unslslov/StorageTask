@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Order;
 
+use App\DataTransferObjects\OrderDto;
 use App\Models\Account;
 use App\Models\Income;
 use App\Models\Order;
@@ -35,7 +36,7 @@ class GetOrder extends Command
 
         if (!$account || !$token) {
             $this->error('Аккаунт или токен не найден');
-            return 1;
+            return;
         }
 
         $this->info("Начало импорта order для аккаунта: {$account->name}");
@@ -55,7 +56,7 @@ class GetOrder extends Command
 
                 if ($response->status() === 429) {
                     $this->retryDelay *= 2;
-                    $this->warn("Rate limit exceeded. Retrying in {$this->retryDelay} seconds...");
+                    $this->warn("Превышен лимит скорости. Повторная попытка через {$this->retryDelay} секунд...");
                     sleep($this->retryDelay);
                     continue;
                 }
@@ -63,13 +64,13 @@ class GetOrder extends Command
                 $this->retryDelay = 1;
 
                 if(!$response->successful()) {
-                    throw new \Exception("API error: " . $response->body());
+                    throw new \Exception("ошибка API: " . $response->body());
                 }
 
                 $data = $response->json('data');
 
                 if (empty($data)) {
-                    $this->info("No data to import on page {$page}");
+                    $this->info("Нет данных для импорта на страницу {$page}");
                     break;
                 }
 
@@ -78,27 +79,8 @@ class GetOrder extends Command
 
                 foreach ($data as $item) {
                     try {
-                        $records[] = [
-                            'g_number' => $item['g_number'] ?? null,
-                            'date' => isset($item['date']) ? Carbon::parse($item['date']) : null,
-                            'last_change_date' => isset($item['last_change_date']) ? Carbon::parse($item['last_change_date']) : null,
-                            'supplier_article' => isset($item['supplier_article']) ? substr($item['supplier_article'], 0, 64) : null,
-                            'tech_size' => isset($item['tech_size']) ? substr($item['tech_size'], 0, 64) : null,
-                            'barcode' => isset($item['barcode']) ? (string)$item['barcode'] : null,
-                            'total_price' => isset($item['total_price']) ? round((float)$item['total_price'], 2) : 0,
-                            'discount_percent' => isset($item['discount_percent']) ? round((float)$item['discount_percent'], 2) : 0,
-                            'warehouse_name' => isset($item['warehouse_name']) ? substr($item['warehouse_name'], 0, 64) : null,
-                            'oblast' => $item['oblast'] ?? null,
-                            'income_id' => isset($item['income_id']) ? (int)$item['income_id'] : 0,
-                            'odid' => isset($item['odid']) ? (int)$item['odid'] : 0,
-                            'nm_id' => $item['nm_id'] ?? null,
-                            'subject' => isset($item['subject']) ? substr($item['subject'], 0, 64) : null,
-                            'category' => isset($item['category']) ? substr($item['category'], 0, 64) : null,
-                            'brand' => isset($item['brand']) ? substr($item['brand'], 0, 64) : null,
-                            'is_cancel' => $item['is_cancel'] ?? false,
-                            'cancel_dt' => isset($item['cancel_dt']) ? Carbon::parse($item['cancel_dt']) : null,
-                            'account_id' => $account->id ?? null
-                        ];
+                        $dto = OrderDto::fromArray($item, $account->id);
+                        $records[] = $dto->toArray();
 
                         if(count($records) >= $this->chunkSize) {
                             $this->insertChunk($records);

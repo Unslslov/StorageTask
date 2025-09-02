@@ -29,11 +29,11 @@ class Token extends Model
 
     public function apiService(): BelongsTo
     {
-        return $this->belongsTo(ApiServices::class);
+        return $this->belongsTo(ApiService::class);
     }
 
     public function tokenType(): BelongsTo
     {
-        return $this->belongsTo(TokenTypes::class);
+        return $this->belongsTo(TokenType::class);
     }
 }

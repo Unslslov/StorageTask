@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Stock;
 
+use App\DataTransferObjects\StockDto;
 use App\Models\Account;
 use App\Models\Stock;
 use App\Models\Token;
@@ -54,7 +55,7 @@ class GetStock extends Command
 
                 if ($response->status() === 429) {
                     $this->retryDelay *= 2;
-                    $this->warn("Rate limit exceeded. Retrying in {$this->retryDelay} seconds...");
+                    $this->warn("Превышен лимит скорости. Повторная попытка через {$this->retryDelay} секунд...");
                     sleep($this->retryDelay);
                     continue;
                 }
@@ -68,7 +69,7 @@ class GetStock extends Command
                 $data = $response->json('data');
 
                 if (empty($data)) {
-                    $this->info("No data to import on page {$page}");
+                    $this->info("Нет данных для импорта на страницу {$page}");
                     break;
                 }
 
@@ -77,28 +78,8 @@ class GetStock extends Command
 
                 foreach ($data as $item) {
                     try {
-                        $records[] = [
-                            'date' => $item['date'] ?? null,
-                            'last_change_date' => $item['last_change_date'] ?? null,
-                            'supplier_article' => isset($item['supplier_article']) ? (string)$item['supplier_article'] : null,
-                            'tech_size' => isset($item['tech_size']) ? (string)$item['tech_size'] : null,
-                            'barcode' => isset($item['barcode']) ? (string)$item['barcode'] : null,
-                            'quantity' => $item['quantity'] ?? null,
-                            'is_supply' => $item['is_supply'] ?? null,
-                            'is_realization' => $item['is_realization'] ?? null,
-                            'quantity_full' => $item['quantity_full'] ?? null,
-                            'warehouse_name' => $item['warehouse_name'] ?? null,
-                            'in_way_to_client' => $item['in_way_to_client'] ?? null,
-                            'in_way_from_client' => $item['in_way_from_client'] ?? null,
-                            'nm_id' => $item['nm_id'] ?? null,
-                            'subject' => isset($item['subject']) ? (string)$item['subject'] : null,
-                            'category' => isset($item['category']) ? (string)$item['category'] : null,
-                            'brand' => isset($item['brand']) ? (string)$item['brand'] : null,
-                            'sc_code' => isset($item['sc_code']) ? (string)$item['sc_code'] : null,
-                            'price' => isset($item['price']) ? round((float)$item['price'], 2) : null,
-                            'discount' => isset($item['discount']) ? round((float)$item['discount'], 2) : null,
-                            'account_id' => $account->id ?? null
-                        ];
+                        $dto = StockDto::fromArray($item, $account->id);
+                        $records[] = $dto->toArray();
 
                         if(count($records) >= $this->chunkSize) {
                             $this->insertChunk($records);
