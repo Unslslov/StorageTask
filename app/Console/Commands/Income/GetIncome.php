@@ -113,9 +113,6 @@ class GetIncome extends Command
                 $params['key'] = $token->value;
                 break;
             case 'bearer':
-                // Для bearer токена нужно добавить заголовок Authorization
-                // Это можно сделать через Http::withToken()
-                // Но в данном случае мы передаем параметры в URL
                 $params['Authorization'] = 'Bearer ' . $token->value;
                 break;
             case 'login-password':
