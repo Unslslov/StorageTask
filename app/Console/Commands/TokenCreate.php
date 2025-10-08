@@ -56,7 +56,8 @@ class TokenCreate extends Command
             $accountOptions[$account->id] = "{$account->company->name} - {$account->name}";
         }
 
-        $accountId = $this->choice('Select account', $accountOptions);
+        $selectedAccount = $this->choice('Select account', $accountOptions);
+        $accountId = array_search($selectedAccount, $accountOptions);
 
         // Выводим список API сервисов для выбора
         $apiServices = ApiService::all();
@@ -67,13 +68,15 @@ class TokenCreate extends Command
         }
 
         $apiServiceOptions = $apiServices->pluck('name', 'id')->toArray();
-        $apiServiceId = $this->choice('Select API service', $apiServiceOptions);
+        $selectedApiService = $this->choice('Select API service', $apiServiceOptions);
 
         // Получаем разрешенные типы токенов для выбранного API сервиса
+        $apiServiceId = array_search($selectedApiService, $apiServiceOptions);
+
         $apiService = ApiService::find($apiServiceId);
         $allowedTokenTypes = $apiService->allowed_token_types;
 
-        $tokenTypes = TokenType::whereIn('id', $allowedTokenTypes)->get();
+        $tokenTypes = TokenType::whereIn('name', $allowedTokenTypes)->get();
 
         if ($tokenTypes->isEmpty()) {
             $this->error('No allowed token types found for this API service.');
@@ -81,9 +84,11 @@ class TokenCreate extends Command
         }
 
         $tokenTypeOptions = $tokenTypes->pluck('name', 'id')->toArray();
-        $tokenTypeId = $this->choice('Select token type', $tokenTypeOptions);
+        $selectedTokenType = $this->choice('Выберите тип токена', $tokenTypeOptions);
 
+        $tokenTypeId = array_search($selectedTokenType, $tokenTypeOptions);
         $tokenType = TokenType::find($tokenTypeId);
+
         $value = $this->ask("Enter {$tokenType->name} value");
 
         // Для типов токенов, требующих дополнительных данных

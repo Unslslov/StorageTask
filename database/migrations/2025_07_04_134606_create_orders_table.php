@@ -28,7 +28,7 @@ class CreateOrdersTable extends Migration
             $table->string('oblast', 64)->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');;
             $table->unsignedBigInteger('income_id');
             $table->unsignedBigInteger('odid');
-            $table->BigInteger('nm_id');
+            $table->BigInteger('nm_id')->nullable();
             $table->string('subject', 64);
             $table->string('category', 64);
             $table->string('brand', 64);

@@ -15,19 +15,19 @@ class AddAccountIdToDataTables extends Migration
     {
         Schema::table('data_tables', function (Blueprint $table) {
             Schema::table('sales', function (Blueprint $table) {
-                $table->foreignId('account_id')->after('sale_id')->nullable()->constrained()->onDelete('cascade');
+                $table->foreignId('account_id')->after('nm_id')->nullable()->constrained()->onDelete('cascade');
             });
 
             Schema::table('orders', function (Blueprint $table) {
-                $table->foreignId('account_id')->after('g_number')->nullable()->constrained()->onDelete('cascade');
+                $table->foreignId('account_id')->after('nm_id')->nullable()->constrained()->onDelete('cascade');
             });
 
             Schema::table('stocks', function (Blueprint $table) {
-                $table->foreignId('account_id')->after('barcode')->nullable()->constrained()->onDelete('cascade');
+                $table->foreignId('account_id')->after('nm_id')->nullable()->constrained()->onDelete('cascade');
             });
 
             Schema::table('incomes', function (Blueprint $table) {
-                $table->foreignId('account_id')->after('income_id')->nullable()->constrained()->onDelete('cascade');
+                $table->foreignId('account_id')->after('nm_id')->nullable()->constrained()->onDelete('cascade');
             });
         });
     }

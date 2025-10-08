@@ -39,8 +39,10 @@ class AccountCreateCommand extends Command
         }
 
         $companyOptions = $companies->pluck('name', 'id')->toArray();
-        $companyId = $this->choice('Select company', $companyOptions);
+        $companyName = $this->choice('Select company', $companyOptions);
 
+        $selectedCompany = $companies->firstWhere('name', $companyName);
+        $companyId = $selectedCompany->id;
         $name = $this->ask('Account name');
 
         try {

@@ -36,7 +36,7 @@ class CreateSalesTable extends Migration
             $table->decimal('for_pay', 15, 2);
             $table->decimal('finished_price', 15, 2);
             $table->decimal('price_with_disc', 15, 2);
-            $table->BigInteger('nm_id');
+            $table->BigInteger('nm_id')->nullable();
             $table->string('subject', 64);
             $table->string('category', 64);
             $table->string('brand', 64);
