@@ -14,6 +14,7 @@ class CreateStocksTable extends Migration
     public function up()
     {
         Schema::create('stocks', function (Blueprint $table) {
+            $table->id();
             $table->date('date')->nullable();
             $table->date('last_change_date')->nullable();
             $table->string('supplier_article')->nullable();

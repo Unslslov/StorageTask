@@ -2,145 +2,34 @@
 
 namespace App\Console\Commands\Stock;
 
+use App\Console\Commands\BaseImportCommand;
 use App\DataTransferObjects\StockDto;
-use App\Models\Account;
 use App\Models\Stock;
-use App\Models\Token;
-use Carbon\Carbon;
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\DB;
 
-class GetStock extends Command
+class GetStock extends BaseImportCommand
 {
-    protected $retryDelay = 1;
-    protected $signature = 'stocks:import {--account=} {--token=} {--dateFrom=} {--dateTo=}';
+    protected $signature = 'stocks:import
+        {--account= : ID аккаунта}
+        {--token= : ID токена}
+        {--dateFrom= : Дата начала}
+        {--dateTo= : Дата окончания}';
+
     protected $description = 'Импорт stocks с внешнего API';
-
     protected $url = "http://109.73.206.144:6969/api/stocks";
-    protected $chunkSize = 100;
 
-    public function handle()
+
+    protected function getDtoClass(): string
     {
-        $accountId = $this->option('account');
-        $tokenId = $this->option('token');
-        $dateFrom = $this->option('dateFrom') ?? '2025-07-04';
-        $dateTo = $this->option('dateTo') ?? now()->format('Y-m-d');
-
-        $page = 1;
-        $limit = 500;
-
-        $account = Account::find($accountId);
-        $token = Token::with('apiService')->find($tokenId);
-
-        if (!$account || !$token) {
-            $this->error('Аккаунт или токен не найден');
-            return 1;
-        }
-
-        $this->info("Начало импорта stock для аккаунта: {$account->name}");
-
-//        ini_set('memory_limit', '512M');
-
-        try {
-            do {
-                $params = $this->buildRequestParams($token, [
-                    'dateFrom' => $dateFrom,
-                    'dateTo' => $dateTo,
-                    'page' => $page,
-                    'limit' => $limit
-                ]);
-
-                $response = Http::get($this->url, $params);
-
-                if ($response->status() === 429) {
-                    $this->retryDelay *= 2;
-                    $this->warn("Превышен лимит скорости. Повторная попытка через {$this->retryDelay} секунд...");
-                    sleep($this->retryDelay);
-                    continue;
-                }
-
-                $this->retryDelay = 1;
-
-                if(!$response->successful()) {
-                    throw new \Exception("API error: " . $response->body());
-                }
-
-                $data = $response->json('data');
-
-                if (empty($data)) {
-                    $this->info("Нет данных для импорта на страницу {$page}");
-                    break;
-                }
-
-                $records = [];
-                $processedCount = 0;
-
-                foreach ($data as $item) {
-                    try {
-                        $dto = StockDto::fromArray($item, $account->id);
-                        $records[] = $dto->toArray();
-
-                        if(count($records) >= $this->chunkSize) {
-                            $this->insertChunk($records);
-                            $processedCount += count($records);
-                            $records = [];
-                        }
-                    } catch (\Exception $e) {
-                        $this->info("Error processing item: " . $e->getMessage());
-                        continue;
-                    }
-                }
-
-                if (!empty($records)) {
-                    $this->insertChunk($records);
-                    $processedCount += count($records);
-                }
-
-                $this->info("Processed page {$page}: {$processedCount} records");
-                $page++;
-            } while (count($data) === $limit);
-
-            $this->info("Import completed successfully for account: {$account->name}");
-        } catch (\Exception $e) {
-            $this->error("Error: " . $e->getMessage());
-            return 1;
-        }
-
-        return 0;
+        return StockDto::class;
     }
 
-    protected function buildRequestParams($token, $params)
+    protected function getModelClass(): string
     {
-        switch ($token->tokenType->name) {
-            case 'api-key':
-                $params['key'] = $token->value;
-                break;
-            case 'bearer':
-                $params['Authorization'] = 'Bearer ' . $token->value;
-                break;
-            case 'login-password':
-                $meta = $token->meta ?? [];
-                $params['login'] = $meta['login'] ?? '';
-                $params['password'] = $meta['password'] ?? '';
-                break;
-        }
-
-        return $params;
+        return Stock::class;
     }
 
-    protected function insertChunk(array $records)
+    protected function getImportType(): string
     {
-        DB::beginTransaction();
-        try {
-
-            Stock::insert($records);
-
-            DB::commit();
-        } catch (\Exception $e) {
-            DB::rollBack();
-            $this->error("Ошибка при вставке чанка: " . $e->getMessage());
-            throw $e;
-        }
+        return 'stocks';
     }
 }

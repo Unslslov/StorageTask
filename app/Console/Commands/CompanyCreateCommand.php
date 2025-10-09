@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Company;
 use Illuminate\Console\Command;
 
-class CompanyCreate extends Command
+class CompanyCreateCommand extends Command
 {
     protected $signature = 'company:add';
     protected $description = 'Добавление новой компании';

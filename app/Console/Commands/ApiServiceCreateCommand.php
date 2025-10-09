@@ -6,7 +6,7 @@ use App\Models\ApiService;
 use App\Models\TokenType;
 use Illuminate\Console\Command;
 
-class ApiServiceCreate extends Command
+class ApiServiceCreateCommand extends Command
 {
     /**
      * The name and signature of the console command.

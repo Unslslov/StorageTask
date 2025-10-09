@@ -2,19 +2,18 @@
 
 namespace Database\Seeders;
 
+use App\Models\Token;
 use Illuminate\Database\Seeder;
 
-class DatabaseSeeder extends Seeder
+class TokenSeeder extends Seeder
 {
     /**
-     * Seed the application's database.
+     * Run the database seeds.
      *
      * @return void
      */
     public function run()
     {
-        $this->call([
-            TokenSeeder::class,
-        ]);
+        Token::factory()->create();
     }
 }

@@ -2,151 +2,33 @@
 
 namespace App\Console\Commands\Income;
 
-use App\Models\Account;
-use App\Models\Income;
-use App\Models\Token;
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
+use App\Console\Commands\BaseImportCommand;
 use App\DataTransferObjects\IncomeDto;
+use App\Models\Income;
 
-class GetIncome extends Command
+class GetIncome extends BaseImportCommand
 {
-    protected $retryDelay = 1;
-    protected $signature = 'incomes:import {--account=} {--token=} {--dateFrom=} {--dateTo=}';
+    protected $signature = 'incomes:import
+        {--account= : ID аккаунта}
+        {--token= : ID токена}
+        {--dateFrom= : Дата начала}
+        {--dateTo= : Дата окончания}';
+
     protected $description = 'Импорт incomes с внешнего API';
     protected $url = "http://109.73.206.144:6969/api/incomes";
-    protected $chunkSize = 100;
 
-    public function handle()
+    protected function getDtoClass(): string
     {
-        $accountId = $this->option('account');
-        $tokenId = $this->option('token');
-        $dateFrom = $this->option('dateFrom');
-        $dateTo = $this->option('dateTo');
-
-        $page = 1;
-        $limit = 500;
-
-        $account = Account::find($accountId);
-        $token = Token::with('apiService')->find($tokenId);
-
-        if (!$account || !$token) {
-            $this->error('Аккаунт или токен не найден');
-            return;
-        }
-
-        $this->info("Начало импорта income для аккаунта: {$account->name}");
-
-        try {
-            do {
-                $params = $this->buildRequestParams($token, [
-                    'dateFrom' => $dateFrom,
-                    'dateTo' => $dateTo,
-                    'page' => $page,
-                    'limit' => $limit
-                ]);
-
-                $response = Http::get($this->url, $params);
-
-                if ($response->status() === 429) {
-                    $this->retryDelay *= 2;
-                    $this->warn("Превышен лимит скорости. Повторная попытка через {$this->retryDelay} секунд...");
-                    sleep($this->retryDelay);
-                    continue;
-                }
-
-                $this->retryDelay = 1;
-
-                if(!$response->successful()) {
-                    throw new \Exception("ошибка API: " . $response->body());
-                }
-
-                $data = $response->json('data');
-
-                if (empty($data)) {
-                    $this->info("Нет данных для импорта на страницу {$page}");
-                    break;
-                }
-
-                $records = [];
-                $processedCount = 0;
-
-                foreach ($data as $item) {
-                    try {
-                        $dto = IncomeDto::fromArray($item, $account->id);
-                        $records[] = $dto->toArray();
-
-                        if(count($records) >= $this->chunkSize) {
-                            $this->insertChunk($records);
-                            $processedCount += count($records);
-                            $records = [];
-                        }
-                    } catch (\Exception $e) {
-                        $this->info("Элемент обработки ошибок: " . $e->getMessage());
-                        continue;
-                    }
-                }
-
-                if (!empty($records)) {
-                    $this->insertChunk($records);
-                    $processedCount += count($records);
-                }
-
-                $this->info("Обработанная страница {$page}: записи {$processedCount}");
-                $page++;
-            } while (count($data) === $limit);
-
-            $this->info("Импорт для учетной записи успешно завершен: {$account->name}");
-        } catch (\Exception $e) {
-            $this->error("Ошибка: " . $e->getMessage());
-            return 1;
-        }
-
-        return 0;
+        return IncomeDto::class;
     }
 
-    protected function buildRequestParams($token, $params)
+    protected function getModelClass(): string
     {
-        switch ($token->tokenType->name) {
-            case 'api-key':
-                $params['key'] = $token->value;
-                break;
-            case 'bearer':
-                $params['Authorization'] = 'Bearer ' . $token->value;
-                break;
-            case 'login-password':
-                $meta = $token->meta ?? [];
-                $params['login'] = $meta['login'] ?? '';
-                $params['password'] = $meta['password'] ?? '';
-                break;
-        }
-
-        return $params;
+        return Income::class;
     }
 
-    protected function insertChunk(array $records)
+    protected function getImportType(): string
     {
-        DB::beginTransaction();
-        try {
-
-            // Используем updateOrCreate для предотвращения дубликатов
-//            foreach ($records as $record) {
-//                Income::updateOrCreate(
-//                    [
-//                        'income_id' => $record['income_id'],
-//                        'account_id' => $record['account_id']
-//                    ],
-//                    $record
-//                );
-//            }
-
-            Income::insert($records);
-            DB::commit();
-        } catch (\Exception $e) {
-            DB::rollBack();
-            $this->error("Ошибка при вставке чанка: " . $e->getMessage());
-            throw $e;
-        }
+        return 'incomes';
     }
 }
